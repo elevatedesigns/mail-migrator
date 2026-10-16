@@ -43,6 +43,13 @@ jobs:
           perl-version: "5.40"
           distribution: ${{ runner.os == 'Windows' && 'strawberry' || 'default' }}
 
+      - name: Windows — use Strawberry Perl, not Git Bash's own perl
+        if: runner.os == 'Windows'
+        run: |
+          rm -f /usr/bin/perl /usr/bin/perl5*
+          which perl
+          perl -e 'print "$^X\n"'
+
       - name: Linux build libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libssl-dev zlib1g-dev libegl1 libgl1 libxkbcommon0

@@ -19,6 +19,12 @@ for pc in libssl libcrypto openssl; do
     sed -e "s|^prefix=.*|prefix=$PREFIX|" "$SRC/lib/pkgconfig/$pc.pc" > "$PREFIX/lib/pkgconfig/$pc.pc"
 done
 
+# On Intel Macs Homebrew links libssl.dylib into /usr/local/lib, which is on
+# the default linker path and would win over the static archives. Unlink it
+# while building (the opt/ path used above stays), and relink afterwards.
+brew unlink openssl@3 >/dev/null 2>&1 || true
+trap 'brew link --overwrite openssl@3 >/dev/null 2>&1 || true' EXIT
+
 export OPENSSL_PREFIX="$PREFIX"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PATH="$PREFIX/bin:$PATH"

@@ -33,6 +33,7 @@ requires 'JSON';
 requires 'JSON::WebToken';
 requires 'JSON::WebToken::Crypt::RSA';
 requires 'LWP::UserAgent';
+requires 'LWP::Protocol::https';
 requires 'Mail::IMAPClient', '3.30';
 requires 'MIME::Base64';
 requires 'Module::Implementation';

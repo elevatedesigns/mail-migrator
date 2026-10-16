@@ -1,0 +1,107 @@
+name: Build Mail Migrator apps
+
+# Builds the desktop app (GUI + standalone imapsync) for Windows, macOS and Linux.
+# Push a tag such as v1.0.0 to also publish the files as a GitHub release.
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+          - name: macOS Apple Silicon
+            os: macos-15
+          - name: macOS Intel
+            os: macos-15-intel
+          - name: Linux x64
+            # The oldest supported Ubuntu keeps the glibc requirement low.
+            os: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: "5.40"
+          distribution: ${{ runner.os == 'Windows' && 'strawberry' || 'default' }}
+
+      - name: Linux build libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev zlib1g-dev libegl1 libgl1 libxkbcommon0
+
+      - name: macOS — link OpenSSL statically into the Perl modules
+        if: runner.os == 'macOS'
+        run: gui/scripts/macos-static-openssl.sh
+
+      - name: Install imapsync Perl dependencies
+        # A few test-only modules do not build everywhere; the next step
+        # checks that everything imapsync really needs is present.
+        run: cpanm --notest --installdeps --with-develop . || echo "::warning::Some optional Perl modules did not install"
+
+      - name: Check imapsync compiles
+        run: perl -c imapsync
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build tools
+        run: python -m pip install -r gui/requirements-build.txt
+
+      - name: Unit tests
+        working-directory: gui
+        run: python -m pytest -q tests
+
+      - name: Build standalone imapsync, app, and package
+        working-directory: gui
+        run: python build.py all
+
+      - name: Self-test the packaged app
+        working-directory: gui
+        run: |
+          case "$RUNNER_OS" in
+            macOS)   "dist/Mail Migrator.app/Contents/MacOS/Mail Migrator" --self-test ;;
+            Linux)   "dist/Mail Migrator/Mail Migrator" --self-test ;;
+            Windows) pwsh -Command '$p = Start-Process -FilePath "dist/Mail Migrator/Mail Migrator.exe" -ArgumentList "--self-test" -Wait -PassThru; exit $p.ExitCode' ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MailMigrator-${{ runner.os }}-${{ runner.arch }}
+          path: gui/release/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true

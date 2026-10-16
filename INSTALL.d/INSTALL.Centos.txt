@@ -1,0 +1,289 @@
+#!/bin/cat 
+# $Id: INSTALL.Centos.txt,v 1.37 2025/09/12 13:29:26 gilles Exp gilles $
+
+This documentation is also located online at 
+https://imapsync.lamiral.info/INSTALL.d/
+https://imapsync.lamiral.info/INSTALL.d/INSTALL.Centos.txt
+
+=======================================================================
+               Installing imapsync on CentOS
+=======================================================================
+
+There is one section for AlmaLinux 9
+one for AlmaLinux and Centos 8,
+one for Centos 7,
+and one for Centos 6.
+
+
+=======================================================================
+                              AlmaLinux 9
+=======================================================================
+
+How to install imapsync on AlmaLinux 9:
+
+  dnf install --enablerepo=crb imapsync
+  imapsync --testslive
+
+Thanks to Alejandro GdeA for this tip.
+
+If it fails, try:
+
+  dnf install yum-utils
+  dnf config-manager --set-enabled crb
+  dnf install epel-release
+  dnf install imapsync
+
+Thanks to Richard Cane for this tip.
+
+=======================================================================
+                        AlmaLinux and Centos 8
+=======================================================================
+
+How to install imapsync on AlmaLinux and Centos 8:
+
+  dnf install --enablerepo=powertools imapsync
+  imapsync --testslive
+
+
+For Centos 8 End Of Life fix:
+https://www.centos.org/centos-linux-eol/
+
+If you encounter the error 
+"Error: Failed to download metadata for repo 'appstream': Cannot prepare internal mirrorlist: No URLs in mirrorlist"
+
+Do this:
+
+  sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-Linux-*
+  sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-Linux-*
+  dnf update
+
+To upgrade to CentOS stream:
+
+  dnf install centos-release-stream
+  dnf swap centos-{linux,stream}-repos
+  dnf distro-sync
+
+Taken from 
+https://stackoverflow.com/questions/70926799/centos-through-vm-no-urls-in-mirrorlist
+
+and tested successfuly on one of my hosts, an ex-Centos8/CentOS-stream now.
+
+=======================================================================
+               AlmaLinux and Centos 8 and latest imapsync
+=======================================================================
+
+At the time of this writing (December 2021), the power-tools repository 
+contains imapsync release 1.977, which is not the latest available 
+imapsync release. (1.977 date is 2019/12/23 while 2.174 is 2021/12/14)
+
+In order to install the latest imapsync I suggest the following process:
+
+Install the power-tools imapsync 1.977 release via dnf like mentioned above.
+It will install the needed packages, Perl itself and Perl modules 
+for release 1.977. 
+
+The imapsync 2.206 and next ones needs the Perl module:
+
+   dnf install perl-Proc-ProcessTable
+
+  wget -N https://imapsync.lamiral.info/imapsync
+  chmod +x imapsync
+
+Now you should have the latest imapsync in your current directory.
+
+Test it with:
+
+  ./imapsync --testslive
+
+If you want to install it on your system and replace the old one:
+
+  mv /usr/bin/imapsync  /usr/bin/imapsync_old
+  cp ./imapsync /usr/bin/imapsync
+
+  imapsync --version
+
+should give the latest release number instead of 1.727
+(It is imapsync release 2.231 at the time of this writing)
+
+You may get an even more recent imapsync release this way.
+
+=======================================================================
+               Centos 7
+=======================================================================
+
+First install access to the Epel repository via yum:
+
+  yum install epel-release
+
+Then install imapsync and its dependencies:
+
+  yum install imapsync
+
+After installing imapsync, it should be able to work on your system.
+A good test that shows also the basic example:
+
+  imapsync
+
+A live test:
+
+  imapsync --testslive --tls1 --ssl2
+
+Unit tests:
+
+  imapsync --tests
+
+=======================================================================
+               Centos 7 and latest imapsync
+=======================================================================
+
+At the time of this writing (March 2020), the epel7 repository still
+contains imapsync release 1.727, which is not the latest available 
+imapsync release. (1.727 date is 2016/08/19 while 2.174 is 2021/12/14)
+
+In order to install the latest imapsync I suggest the following process:
+
+Install the epel imapsync 1.727 release via yum like mentioned above.
+It will install many needed packages, Perl itself and Perl modules 
+for release 1.727. The latest imapsync needs more Perl modules.
+
+Then:
+
+  yum install perl-App-cpanminus \
+ perl-Dist-CheckConflicts \
+ perl-HTML-Parser \
+ perl-libwww-perl \
+ perl-Module-Implementation \
+ perl-Module-ScanDeps \
+ perl-Package-Stash \
+ perl-Package-Stash-XS \
+ perl-PAR-Packer \
+ perl-Regexp-Common \
+ perl-Sys-MemInfo \
+ perl-Test-Fatal \
+ perl-Test-Mock-Guard \
+ perl-Test-Requires \
+ perl-Test-Deep \
+ perl-File-Tail \
+ perl-Unicode-String \
+ perl-Test-NoWarnings \
+ perl-Test-Simple \
+ perl-Test-Warn \
+ perl-Sub-Uplevel \
+ perl-Proc-ProcessTable \
+ ca-certificates
+
+Also, run the following commands:
+
+  cpanm Encode::IMAPUTF7 
+  wget -N https://imapsync.lamiral.info/imapsync
+  chmod +x imapsync
+
+Now you should have the latest imapsync in your current directory.
+
+Test it with:
+
+  ./imapsync --testslive
+
+If you want to install it on your system and replace the old one:
+
+  mv /usr/bin/imapsync  /usr/bin/imapsync_old
+  cp ./imapsync /usr/bin/imapsync
+
+  imapsync --version
+
+should give the latest release number instead of 1.727
+(It is imapsync release 2.231 at the time of this writing)
+
+
+If you want to install an online imapsync service
+like /X then you also need a recent decent CGI.pm,
+add it with cpanm:
+
+  cpanm CGI 
+
+
+=======================================================================
+               Centos 6
+=======================================================================
+
+This section has been tested with imapsync release 1.670
+
+First, install access to the Epel repository
+ 
+  wget http://dl.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm
+  rpm -Uvh epel-release-6-8.noarch.rpm
+
+Then install imapsync and its dependencies:
+
+ yum install imapsync
+
+After installing imapsync, it should be able to work on your system.
+A good test that shows also the basic example:
+
+  imapsync
+
+A live test:
+
+  imapsync --testslive
+  
+Unit tests:
+
+  imapsync --tests
+
+=======================================================================
+               Centos 6 and latest imapsync
+=======================================================================
+
+Install the epel imapsync 1.670 release via yum like mentioned above.
+
+It will install many needed packages, Perl itself and Perl modules 
+for release 1.670. The latest imapsync needs more Perl modules.
+
+Then:
+
+  yum install perl-App-cpanminus \
+ perl-Dist-CheckConflicts \
+ perl-HTML-Parser \
+ perl-libwww-perl \
+ perl-Module-Implementation \
+ perl-Module-ScanDeps \
+ perl-Package-Stash \
+ perl-Package-Stash-XS \
+ perl-PAR-Packer \
+ perl-Regexp-Common \
+ perl-Sys-MemInfo \
+ perl-Test-Fatal \
+ perl-Test-Mock-Guard \
+ perl-Test-Requires \
+ perl-Test-Deep \
+ perl-File-Tail \
+ perl-Unicode-String \
+ perl-Proc-ProcessTable 
+
+Also, run the following commands:
+
+  cpanm Encode::IMAPUTF7 
+  wget -N https://imapsync.lamiral.info/imapsync
+  chmod +x imapsync
+
+Now you should have the latest imapsync in your current directory.
+
+Test it with:
+
+  ./imapsync --testslive
+
+If you want to install it on your system and replace the old one:
+
+  mv /usr/bin/imapsync  /usr/bin/imapsync_old
+  cp ./imapsync /usr/bin/imapsync
+
+  imapsync --version
+
+should give the latest release number instead of 1.727
+(It is imapsync release 2.231 at the time of this writing)
+
+Now you have the latest imapsync on Centos 6, 
+do you?
+
+=======================================================================
+=======================================================================

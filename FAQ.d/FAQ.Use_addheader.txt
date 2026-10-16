@@ -1,0 +1,49 @@
+#!/bin/cat
+$Id: FAQ.Use_addheader.txt,v 1.7 2025/07/17 12:01:48 gilles Exp gilles $
+
+This document is also available online at
+https://imapsync.lamiral.info/FAQ.d/
+https://imapsync.lamiral.info/FAQ.d/FAQ.Use_addheader.txt
+
+
+=======================================================================
+               Imapsync --addheader suggestion.
+               How to sync Sent and Draft folders.
+=======================================================================
+
+=======================================================================
+Q. My Sent and Draft folders are not synced? How can I sync them?
+
+A. Add the option --addheader
+
+   imapsync ... --addheader
+
+=======================================================================
+Q. What means this log message:
+   "Host1 Sent/1234 ignored (no wanted headers so we ignore this message. 
+   To solve this: use --addheader)"
+
+A. In order to sync messages from one account to another, Imapsync has
+   to identify messages on both sides, and compare them.
+   
+   Imapsync can use two completely different methods to identify 
+   messages on each account.
+   
+   The first one, the default one, uses some headers of messages.
+   Real world syncs with various imap servers have bring me to use
+   two headers "Message-Id:" and "Received:". It works for most
+   messages except for special folders like Sent or Draft where
+   messages in those folders don't have "Message-Id:" nor 
+   "Received:" headers.
+   
+   Here comes --addheader option. When a message has no "Message-Id:" 
+   nor "Received:" headers, option --addheader adds a "Message-Id" header 
+   consisting of the imap UID of the message on the host1 folder, 
+   like "Message-Id: 12345@imapsync".
+   This way, messages are well identified on both sides,
+   transferred, and only once.
+
+   It is usually needed for Sent and Draft folders.
+
+=======================================================================
+=======================================================================

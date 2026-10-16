@@ -1,0 +1,21 @@
+#!/bin/cat 
+# $Id: INSTALL.Docker_build.txt,v 1.20 2025/04/25 19:44:20 gilles Exp gilles $
+
+This documentation is also located online at 
+https://imapsync.lamiral.info/INSTALL.d/
+https://imapsync.lamiral.info/INSTALL.d/INSTALL.Docker_build.txt
+
+=======================================================================
+               Building an imapsync docker image from Debian
+=======================================================================
+
+Read and use the Dockerfile located at
+https://imapsync.lamiral.info/INSTALL.d/Dockerfile 
+It is self-documented.
+
+
+See also
+https://imapsync.lamiral.info/FAQ.d/FAQ.Docker.txt
+
+=======================================================================
+=======================================================================

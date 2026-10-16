@@ -1,0 +1,44 @@
+#!/bin/cat 
+# $Id: INSTALL.FreeBSD.txt,v 1.14 2025/09/12 13:29:26 gilles Exp gilles $
+
+This documentation is also located online at 
+https://imapsync.lamiral.info/INSTALL.d/
+https://imapsync.lamiral.info/INSTALL.d/INSTALL.FreeBSD.txt
+
+=======================================================================
+               Installing imapsync on FreeBSD
+=======================================================================
+
+Thanks to Kurt Jaeger pi@FreeBSD.org an imapsync package is available in FreeBSD  
+https://ports.freebsd.org/cgi/ports.cgi?query=imapsync&stype=all&sektion=all
+So, to install imapsync you just have to type one command in a terminal:
+
+  sudo pkg install imapsync
+
+or if you're already root on the console:
+
+  pkg install imapsync
+ 
+Tested 7 March 2015 on FreeBSD 10.1-RELEASE
+Tested 2 July  2018 on FreeBSD 11.2-RELEASE
+I no longer use FreeBSD so I can't provide more tests myself
+but it should be okay.
+
+=======================================================================
+=======================================================================
+
+In order to install and be able to run latest imapsync online /X, 
+install also:
+p5-Regexp-Common
+p5-Test-MockObject
+p5-CGI
+p5-Encode-IMAPUTF7
+
+
+Call to FreeBSD developer:  These are also the following new Perl module 
+dependencies to add for imapsync 2.206 and next ones:
+
+Proc::ProcessTable
+p5-Net-DNS
+
+Then send me a note to remove this call.

@@ -1,0 +1,28 @@
+imapsync_elf_x86.bin
+imapsync_bin_Darwin
+imapsync_bin_Linux_i686
+imapsync_bin_Linux_i686_petite
+*~
+debian/*.log
+debian/*.subvars
+debian/*/*/*
+debian/files
+packaging/*/*
+W/tmp/*
+
+# Mail Migrator GUI build outputs
+gui/build/
+gui/dist/
+gui/release/
+gui/imapsync-bin/
+__pycache__/
+*.pyc
+.pytest_cache/
+# cpanm -L local
+local/
+.DS_Store
+
+# Upstream OAuth2 helper scripts embed the imapsync author's own OAuth client
+# credentials; they are not republished here. Get them from upstream imapsync.
+oauth2/
+X/oauth2_example.html

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html  xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en" id="TOP">
+
+<head>
+<title>Imapsync lists of the Email providers and the IMAP server software applications supported.</title>
+<meta name="generator" content="Bluefish 2.2.2" />
+<meta name="author" content="Gilles LAMIRAL" />
+<meta name="date" content="2016-04-10T00:24:15+0200" />
+<meta name="copyright" content="None"/>
+<meta name="keywords" content="imap, transfer, migration"/>
+<meta name="description" content="imap migration tool"/>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8"/>
+<meta http-equiv="content-style-type" content="text/css"/>
+<meta http-equiv="expires" content="0"/>
+<link rel="icon" type="image/png" href="../S/images/logo_imapsync_s.png" />
+<link href="../S/style.css" rel="stylesheet" type="text/css"/>
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
+-->
+</head>
+
+<body>
+
+
+<h1>Imapsync lists of the Email IMAP providers supported and the IMAP server software applications supported.
+<a id="imap_server_success" href="../#TOP"><small>(back to menu)</small></a>
+</h1>
+
+<p>To know whether your IMAP server is a widespread choice, 
+take a look at <a href="http://openemailsurvey.org/">http://openemailsurvey.org/</a> or 
+the <a href="https://www.shodan.io/search/facet?query=imap&amp;facet=product">Shodan IMAP query result</a>.<br/>
+The short answer is that if you're not using the famous <b>Dovecot</b> then you're in a niche!
+</p>
+
+
+<p>First, the email IMAP hosting providers: </p>
+
+<ol>
+	<li>1und1 H mimap1, H mibap4(<a href="http://www.1und1.de/">http://www.1und1.de/</a>)</li>	
+	<li>a1.net imap.a1.net IMAP4 Ready </li>
+        <li>Earthlink webhosting (<a href="https://www.earthlink.net/">https://www.earthlink.net/</a>) uses BigFoot imap server.</li>
+	<li><b>Gimap</b> (<b>Gmail</b> imap) (<a href="http://mail.google.com/">http://mail.google.com/</a>)   </li>
+	<li>GMX IMAP4 StreamProxy. (<a href="http://www.gmx.com/">http://www.gmx.com/</a>)   </li>
+	<li>Godaddy IMAP (since Godaddy runs Courier)    (<a href="https://www.godaddy.com/">https://www.godaddy.com/</a>) </li>
+	<li>hMailServer	(<a href="https://www.hmailserver.com/">https://www.hmailserver.com/</a>)   </li>
+        <li>Hostgator, Hostgator imap server software is Dovecot (ghost.mxroute.com). <a href="https://www.hostgator.com/">https://www.hostgator.com/</a></li>
+        <li>Hostinger, Hostinger imap server software is Dovecot (imap.hostinger.com). <a href="https://www.hostinger.com/">https://www.hostinger.com/</a></li>
+	<li><b>Hotmail</b> hotmail.com is outlook.com and live.com now.</li>
+	<li>Mailfence (<a href="https://mailfence.com/">https://mailfence.com/</a>)</li>	
+        <li>MXroute, MXroute imap server software is Dovecot. <a href="https://mxroute.com/">https://mxroute.com/</a></li>
+	<li><b>Office 365</b> (<a href="http://office365.com">http://office365.com</a>)  </li>
+	<li><b><a href="http://outlook.com/">Outlook.com</a></b> can be IMAP accessed via host imap-mail.outlook.com.</li>	
+        <li>PowerMail (French Email provider) (<a href="https://www.powermail.fr/">https://www.powermail.fr/</a></li>
+   	<li>RackSpace hoster secure.emailsrvr.com <a href="http://www.rackspace.com/">http://www.rackspace.com/</a>)</li>
+	<li><b>Yahoo</b> (<a href="http://www.yahoo.com/">http://www.yahoo.com/</a>) </li>
+
+
+</ol>
+
+<p>Second, the email IMAP server software tools:</p>
+
+<ol>
+        <li>Amazon AWS WorkMail IMAP server</li>
+	<li><b>Apple Server</b> </li>
+	<li>Archiveopteryx (<a href="http://www.archiveopteryx.org/">http://www.archiveopteryx.org/</a>)</li>
+        <li>ArGoSoft <a href="http://www.argosoft.com/">http://www.argosoft.com/</a></li>
+	<li>Atmail <a href="https://www.atmail.com/">https://www.atmail.com/</a></li>
+	<li>Axigen (<a href="https://www.axigen.com/">https://www.axigen.com/</a>)</li>
+        
+        <li>BigFoot (Derek Snider)</li>
+	<li>BincImap (<a href="http://www.bincimap.org/">http://www.bincimap.org/</a>)</li>
+        <li>BlueMind <a href="https://www.bluemind.net/">https://www.bluemind.net/</a></li>
+        
+	<li>ClearOS <a href="https://www.clearos.com/">https://www.clearos.com/</a> uses Cyrus as IMAP backend server.</li>
+	<li>CommuniGatePro (<a href="http://www.communigate.com/">http://www.communigate.com/</a>) </li>
+	<li>Courier (<a href="http://www.courier-mta.org/imap/">http://www.courier-mta.org/imap/</a>)   </li>
+	<li>Critical Path </li>
+	<li>Cyrus IMAP (<a href="https://www.cyrusimap.org/">https://www.cyrusimap.org/</a>) </li>
+        
+	<li>David Tobit (<a href="https://tobit.software/">https://tobit.software/</a>) </li>
+	<li>DBMail (<a href="http://www.dbmail.org/">http://www.dbmail.org/</a>)</li>
+	<li>DBOX  (<a href="http://www.dbox.handshake.de/">http://www.dbox.handshake.de/</a>).</li>
+	<li>Deerfield VisNetic MailServer (<a href="http://www.deerfield.net/products/visnetic-mailserver/">http://www.deerfield.net/products/visnetic-mailserver/</a>)   </li>
+	<li>dkimap4  </li>
+	<li>Domino (IBM Notes) (<a href="http://www-03.ibm.com/software/products/en/ibmnotes">http://www-03.ibm.com/software/products/en/ibmnotes</a>)   </li>
+	<li><b>Dovecot</b> (<a href="http://www.dovecot.org/">http://www.dovecot.org/</a>)   </li>
+        
+        
+        <li>Emailchemy from weirdkid.com (<a href="https://weirdkid.com/emailchemy/">https://weirdkid.com/emailchemy/</a>). Use option --noabletosearch </li>
+	<li>Eudora WorldMail (<a href="http://www.eudora.com/worldmail/">http://www.eudora.com/worldmail/</a>)   </li>
+	<li><b>Exchange Server</b> (<a href="http://www.microsoft.com/exchange/">http://www.microsoft.com/exchange/</a>) </li>
+        
+        
+	<li>FirstClass. FirstClass is hard to migrate so read the <a href="https://imapsync.lamiral.info/FAQ.d/FAQ.FirstClass.txt">FirtClass FAQ</a>
+        (<a href="http://www.firstclass.com/">http://www.firstclass.com/</a>)</li>
+        <li>FortiMail (<a href="https://www.fortinet.com/products/application-security/fortimail.html">https://www.fortinet.com/.../fortimail.html</a>)</li>
+	<li>FTGate (<a href="http://www.ftgate.com/">http://www.ftgate.com/</a>)</li>
+        <li>Fusemail (<a href="https://www.fusemail.com/">https://www.fusemail.com/</a>).</li>
+
+
+        <li>Gromox/Grammm IMAP server (<a href="https://docs.grammm.com/">https://docs.grammm.com/</a>)</li>
+        <li>Grommunio (<a href="https://grommunio.com/">https://grommunio.com/</a>)</li> 
+	<li>Groupwise IMAP (Novell). Buggy so see the <a href="../FAQ.d/FAQ.Various_Software_Servers.txt">FAQ item about Groupwise</a>
+	(<a href="http://www.novell.com/products/groupwise/">http://www.novell.com/products/groupwise/</a>)   </li>
+        
+        
+	<li>IceWarp (<a href="https://www.icewarp.com/">https://www.icewarp.com/</a>)</li>
+	<li>IdeaImapServer </li>
+	<li>IMail (<a href="http://www.imailserver.com/">http://www.imailserver.com/</a>)   </li>
+        <li>iPlanet Messaging server (<a href="http://en.wikipedia.org/wiki/Oracle_Communications_Messaging_Server">http://en.wikipedia.org/wiki/Oracle_Communications_Messaging_Server</a>)   </li>
+        <li>iRedMail, iRedMail imap server software is Dovecot (<a href="http://www.iredmail.org/">http://www.iredmail.org/</a>)</li>
+        
+        <li>James, the Java Apache Mail Enterprise Server (<a href="https://james.apache.org/">https://james.apache.org/</a>)</li>
+        
+	<li>Kerio (<a href="https://www.kerio.com/">https://www.kerio.com/</a>)   </li>
+        <li>Kolab. Kolab groupware uses Cyrus.(<a href="https://kolab.org/">https://kolab.org/</a>)</li>
+        <li>Kopano (<a href="https://kopano.com/">https://kopano.com/</a>) (successor of Zarafa)  </li>
+        
+        
+	<li>Mail2World (<a href="http://www.mail2world.com/">http://www.mail2world.com/</a>)</li>
+	<li><b>MailEnable</b> (<a href="http://www.mailenable.com/">http://www.mailenable.com/</a>)   </li>
+	<li>MDaemon (<a href="http://www.altn.com/">http://www.altn.com/</a>)   </li>
+	<li>Mercury (<a href="http://www.pmail.com/">http://www.pmail.com/</a>)   </li>
+	<li>Mirapoint (<a href="https://www.icewarp.com/mirapoint/">https://www.icewarp.com/mirapoint/</a>)   </li>
+	<li>Netscape Mail Server </li>
+	<li>Netscape Messaging Server </li>
+        
+	<li>OpenMail IMAP server </li>
+	<li>OpenWave (<a href="http://www.openwave.com/">http://www.openwave.com/</a>)   </li>
+	<li>Oracle Beehive (<a href="http://www.oracle.com/technetwork/middleware/beehive/overview/index.html">http://www.oracle.com/technetwork/middleware/beehive/overview/</a>)   </li>
+        
+	<li>Parallels Plesk Panel (<a href="http://www.parallels.com/">http://www.parallels.com/</a>)</li>
+        <li>Pegasus Mail (by David Harris) (<a href="http://www.pmail.com/">http://www.pmail.com/</a></li>
+        <li>Perdition (<a href="https://projects.horms.net/projects/perdition/">https://projects.horms.net/projects/perdition/</a></li>
+        <li>ProtoMail (<a href="https://protonmail.com/">https://protonmail.com/</a></li>
+
+	<li>QQMail IMAP4Server (See FAQ) <a href="https://en.mail.qq.com/">https://en.mail.qq.com/</a> </li>
+	<li>Qualcomm Worldmail (<a href="http://www.eudora.com/worldmail/">http://www.eudora.com/worldmail/</a>)   </li>
+        
+	<li>Rockliffe Mailsite (<a href="http://www.mailsite.com/">http://www.mailsite.com/</a>)   </li>
+
+	<li>Samsung Contact IMAP server </li>
+	<li>Scalix (<a href="http://www.scalix.com/">http://www.scalix.com/</a>)   </li>
+        <li>Sendmail Mail Store IMAP4rev1 </li>
+	<li>SmarterMail (<a href="http://www.smartertools.com/">http://www.smartertools.com/</a>)   </li>
+	<li>Softalk Workgroup Mail (<a href="http://www.softalkltd.com/products/download_wm_v7.asp">http://www.softalkltd.com/products/download_wm_v7.asp</a>).</li>
+	<li>SunONE Messaging server (SUN JES - Java Enterprise System) (<a href="http://www.oracle.com/">http://www.oracle.com/</a>)   </li>
+	<li>Sun Java(tm) System Messaging Server (<a href="http://www.oracle.com/">http://www.oracle.com/</a>)   </li>
+	<li>Surgemail (<a href="http://netwinsite.com/surgemail/">http://netwinsite.com/surgemail/</a>)   </li>
+	 
+	<li>Tegu mail server (<a href="https://mbk-lab.ru/">https://mbk-lab.ru/</a>)</li>
+	<li>UW-imap servers (<a href="http://www.washington.edu/imap/">http://www.washington.edu/imap/</a>) </li>
+	<li>VMS (<a href="https://www.vmssoftware.com/">https://www.vmssoftware.com/</a>)   </li>
+        <li>Amazon WorkMail (<a href="https://aws.amazon.com/fr/workmail/">https://aws.amazon.com/fr/workmail/</a>)</li>
+        <li>Xeams/Synametrics (<a href="http://www.xeams.com/">http://www.xeams.com/</a>) </li>
+        
+	<li>Zarafa (<a href="http://www.zarafa.com/">http://www.zarafa.com/</a>) </li>
+	<li><b>Zimbra</b> (<a href="http://www.zimbra.com/">http://www.zimbra.com/</a>)   </li>
+        <li>Zentyal (Zinc) (<a href="http://www.zentyal.org/">http://www.zentyal.org/</a>) </li>
+</ol>
+
+
+
+<hr/>
+<div>
+<a href="http://validator.w3.org/check?uri=referer">
+  <img
+  src="../S/images/valid-xhtml10"
+  alt="Valid XHTML 1.0 Strict" height="31" width="88" />
+</a>
+
+<a href="http://jigsaw.w3.org/css-validator/check/referer">
+  <img style="border:0;width:88px;height:31px"
+  src="../S/images/vcss-blue"
+  alt="CSS Valide !" />
+</a>
+
+<a href="http://www.anybrowser.org/campaign/">
+<img style="border:0;width:88px;height:31px"
+src="../S/images/ab_jlh.png" 
+alt="Viewable With Any Browser" />
+</a>
+</div>
+
+<hr/>
+<p>
+<!--#config timefmt="%D" -->
+<!--#config timefmt="%A %B %d, %Y" -->
+<b>This document last modified on <!--#echo var="LAST_MODIFIED" --></b>
+($Id: imapservers.shtml,v 1.66 2025/08/13 14:19:32 gilles Exp gilles $)<br/>
+<a href="#TOP">Top of the page</a>
+</p>
+
+</body>
+</html>
+

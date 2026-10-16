@@ -1,0 +1,36 @@
+#!/bin/cat
+$Id: FAQ.ProtonMail.txt,v 1.2 2025/08/05 14:15:26 gilles Exp gilles $
+
+This document is also available online at
+https://imapsync.lamiral.info/FAQ.d/
+https://imapsync.lamiral.info/FAQ.d/FAQ.ProtonMail.txt
+
+
+=======================================================================
+            Imapsync tips for ProtonMail imap server
+=======================================================================
+
+
+
+======================================================================
+Q: Syncing from ProtonMail
+
+R: To avoid a big destination folder "All Mail" with most messages 
+   duplicated, use the option --skipcrossduplicates
+
+    imapsync ... --skipcrossduplicates
+
+======================================================================
+
+
+
+======================================================================
+Q: Syncing to ProtonMail
+
+R: Use:
+
+    imapsync ... --prefix2 Folders/
+
+======================================================================
+
+

@@ -11,6 +11,9 @@ here = Path(SPECPATH)
 # The standalone imapsync binary is copied in by build.py after this spec runs:
 # PyInstaller would try to re-sign it on macOS, which PAR-packed binaries do not allow.
 datas = []
+# Time zone data for calendars (Windows has no system copy).
+from PyInstaller.utils.hooks import collect_data_files
+datas += collect_data_files("tzdata")
 
 # Only the Qt modules the app uses; keeps the download small.
 excludes = ["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.Qt3DCore",

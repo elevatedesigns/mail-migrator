@@ -15,12 +15,15 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QFileDialog, QHBoxLay
                                QWidget)
 
 from . import __version__
+from . import keepawake
 from . import theme as t
 from .batch import format_accounts, parse_accounts
 from .engine import (Account, CommandError, Options, Server, describe_exit, find_imapsync,
                      parse_extra_args, preflight, single_side, validate)
-from .pages import (MailboxesPage, OptionsPage, ReviewPage, RunPage, ServerPage, TypePage,
-                    checked_line, kv)
+from .cloudui import BgTask, CloudMixin
+from .engine import AUTH_ADMIN, AUTH_SIGNIN
+from .pages import (DataPage, MailboxesPage, OptionsPage, ReviewPage, RunPage, ServerPage,
+                    SharedDrivesPage, TypePage, checked_line, kv)
 from .progress import is_error_line, is_warning_line
 from .providers import PROVIDERS
 from .runner import AccountResult, MigrationRunner
@@ -32,7 +35,10 @@ from .widgets import (ChecklistCard, IconBadge, InfoCard, LogCard, Stepper, butt
 
 APP_NAME = "Mail Migrator"
 STEP_LABELS = {"type": "Migration Type", "source": "Source", "destination": "Destination",
-               "mailboxes": "Mailboxes", "options": "Options", "review": "Review & Start"}
+               "data": "What to Migrate", "mailboxes": "Mailboxes", "shared": "Shared Drives",
+               "options": "Options", "review": "Review & Start"}
+KIND_NAMES = {"mail": "Email", "contacts": "Contacts", "calendars": "Calendars",
+              "files": "Files", "shared": "Shared drives"}
 KEY_LINES = ("success login", "failure", "Err ", "Error", "Exiting with return value")
 
 
@@ -90,7 +96,7 @@ class CurrentPageStack(QStackedWidget):
         return w.minimumSizeHint() if w else super().minimumSizeHint()
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, CloudMixin):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
@@ -114,6 +120,11 @@ class MainWindow(QMainWindow):
         self.last_results: list[AccountResult] = []
         self.on_run_page = False
         self._tray: QSystemTrayIcon | None = None
+        self.creds: dict = {1: None, 2: None}      # signed-in / admin credentials, memory only
+        self._signin_cancel: dict = {}
+        self.cloud_worker = None
+        self._accounts_running: list[Account] = []
+        self._mail_summary = None
 
         self._build()
         self._load_last()
@@ -144,6 +155,8 @@ class MainWindow(QMainWindow):
 
         self.presets.load_requested.connect(self._apply_preset)
         self.settings_page.engine_changed.connect(self._engine_changed)
+        self.settings_page.apps_changed.connect(self._apps_changed)
+        self.settings_page.set_app_values(self._app_overrides())
 
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(min(1480, screen.width() - 40), min(980, screen.height() - 40))
@@ -206,15 +219,18 @@ class MainWindow(QMainWindow):
         self.type_page = TypePage()
         self.src_page = ServerPage(1)
         self.dst_page = ServerPage(2)
+        self.data_page = DataPage()
+        self.shared_page = SharedDrivesPage()
         self.mbx_page = MailboxesPage()
         self.opt_page = OptionsPage()
         self.review_page = ReviewPage()
         self.run_page = RunPage()
         self.page_for = {"type": self.type_page, "source": self.src_page,
-                         "destination": self.dst_page, "mailboxes": self.mbx_page,
+                         "destination": self.dst_page, "data": self.data_page,
+                         "mailboxes": self.mbx_page, "shared": self.shared_page,
                          "options": self.opt_page, "review": self.review_page}
-        for p in (self.type_page, self.src_page, self.dst_page, self.mbx_page,
-                  self.opt_page, self.review_page, self.run_page):
+        for p in (self.type_page, self.src_page, self.dst_page, self.data_page, self.mbx_page,
+                  self.shared_page, self.opt_page, self.review_page, self.run_page):
             self.pages.addWidget(p)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -274,6 +290,16 @@ class MainWindow(QMainWindow):
         self.mbx_page.import_requested.connect(self._import_csv)
         self.mbx_page.export_requested.connect(self._export_csv)
         self.mbx_page.template_requested.connect(self._save_template)
+        self.mbx_page.directory_requested.connect(self._load_directory)
+        self.shared_page.load_requested.connect(self._load_shared)
+        self.data_page.changed.connect(self._update_steps)
+        for n, page in ((1, self.src_page), (2, self.dst_page)):
+            page.signin_requested.connect(lambda n=n: self._sign_in(n))
+            page.admin_requested.connect(lambda n=n: self._admin_connect(n))
+            for combo in (page.provider, page.auth):
+                combo.currentIndexChanged.connect(self._update_availability)
+            for edit in (page.carddav, page.caldav, page.webdav):
+                edit.textChanged.connect(self._update_availability)
         self.review_page.estimate_requested.connect(lambda: self._start_run("sizes"))
         self.review_page.edit_requested.connect(self._edit)
         return w
@@ -288,13 +314,27 @@ class MainWindow(QMainWindow):
 
     def _set_mode(self, mode: str) -> None:
         self.mode = mode
-        self.steps = (["type", "source", "destination", "options", "review"] if mode == "single"
-                      else ["type", "source", "destination", "mailboxes", "options", "review"])
-        self.stepper.set_steps([STEP_LABELS[s] for s in self.steps])
         self.src_page.set_bulk(mode == "bulk")
         self.dst_page.set_bulk(mode == "bulk")
-        self.max_step = min(self.max_step, len(self.steps) - 1)
+        self._update_steps()
         self._reset_checks()
+        self._update_availability()
+
+    def _update_steps(self) -> None:
+        current = self.steps[self.step] if self.steps else "type"
+        kinds = self.data_page.selected()
+        steps = ["type", "source", "destination", "data"]
+        if self.mode == "bulk":
+            steps.append("mailboxes")
+        if "shared" in kinds:
+            steps.append("shared")
+        steps += ["options", "review"]
+        self.steps = steps
+        self.stepper.set_steps([STEP_LABELS[s] for s in steps])
+        self.step = steps.index(current) if current in steps else min(self.step, len(steps) - 1)
+        self.max_step = min(self.max_step, len(steps) - 1)
+        self.stepper.set_current(self.step, self.max_step - 1 if self.max_step > self.step
+                                 else self.step - 1)
 
     def _go(self, index: int) -> None:
         self.on_run_page = False
@@ -308,6 +348,10 @@ class MainWindow(QMainWindow):
                                  else self.step - 1)
         if key == "review":
             self._fill_review()
+        if key == "data":
+            self._update_availability()
+        if key == "options":
+            self.opt_page.set_kinds(self.data_page.selected(), self.dst_page.platform())
         self._update_side_cards()
         self._update_footer()
 
@@ -358,13 +402,34 @@ class MainWindow(QMainWindow):
             p = PROVIDERS[s.provider]
             if (not p.flag or p.flag == "exchange") and not s.host:
                 return f"Enter the {word.lower()} server address."
+            n = 1 if key == "source" else 2
+            mode = page.auth_mode()
+            cloud = page.platform() != "imap"
+            if cloud and mode == AUTH_SIGNIN:
+                if self.mode == "bulk":
+                    return (f"{word}: a bulk migration needs admin access on this side, or app "
+                            "passwords / tokens (email only).")
+                if self.creds.get(n) is None or self.creds[n].admin:
+                    return f"{word}: click “Sign in” first."
+                return ""
+            if cloud and mode == AUTH_ADMIN:
+                if self.creds.get(n) is None or not self.creds[n].admin:
+                    return f"{word}: connect with admin access first."
+                if self.mode == "single" and not page.user.text().strip():
+                    return f"{word}: enter the mailbox to migrate."
+                return ""
             if self.mode == "single":
                 if not page.user.text().strip():
                     return f"Enter the {word.lower()} username."
                 if not page.secret.text():
                     return f"Enter the {word.lower()} password or token."
+        if key == "data" and not self.data_page.selected():
+            return "Choose at least one kind of data to migrate."
+        if key == "shared" and "shared" in self.data_page.selected() and \
+                not self.shared_page.plans():
+            return "Load the shared drives and tick at least one, or untick Shared drives."
         if key == "mailboxes":
-            accounts = self.mbx_page.table.accounts()
+            accounts = self._accounts()
             if not accounts:
                 return "Add at least one mailbox."
             for i, a in enumerate(accounts, 1):
@@ -381,6 +446,7 @@ class MainWindow(QMainWindow):
 
     def _update_footer(self) -> None:
         busy = self._busy()
+        keepawake.set_active(busy)
         key = self.steps[self.step] if not self.on_run_page else "run"
         first = key == "type"
         review = key == "review"
@@ -469,10 +535,28 @@ class MainWindow(QMainWindow):
     # ================================================================== data
 
     def _accounts(self) -> list[Account]:
+        """Mailbox pairs, with token providers in place of passwords on signed-in sides."""
         if self.mode == "bulk":
-            return self.mbx_page.table.accounts()
-        return [Account(self.src_page.user.text().strip(), self.src_page.secret.text(),
-                        self.dst_page.user.text().strip(), self.dst_page.secret.text())]
+            rows = self.mbx_page.table.accounts()
+        else:
+            users = []
+            for n, page in ((1, self.src_page), (2, self.dst_page)):
+                cred = self.creds.get(n)
+                if page.platform() != "imap" and page.auth_mode() == AUTH_SIGNIN and cred:
+                    users.append(cred.email)
+                else:
+                    users.append(page.user.text().strip())
+            rows = [Account(users[0], self.src_page.secret.text(), users[1],
+                            self.dst_page.secret.text())]
+        out = []
+        for a in rows:
+            s1, s2 = a.secret1, a.secret2
+            if self.src_page.uses_cloud_login():
+                s1 = self._token_provider(1, a.user1)
+            if self.dst_page.uses_cloud_login():
+                s2 = self._token_provider(2, a.user2)
+            out.append(Account(a.user1, s1, a.user2, s2))
+        return out
 
     def _profile(self) -> dict:
         src = self.src_page.server().to_dict()
@@ -480,7 +564,10 @@ class MainWindow(QMainWindow):
         if self.mode == "single":
             src["user"] = self.src_page.user.text().strip()
             dst["user"] = self.dst_page.user.text().strip()
-        data = {"version": 2, "mode": self.mode, "source": src, "destination": dst,
+        src.update(self.src_page.admin_settings(), **self.src_page.dav())
+        dst.update(self.dst_page.admin_settings())
+        data = {"version": 3, "mode": self.mode, "source": src, "destination": dst,
+                "kinds": self.data_page.selected(),
                 "options": self.opt_page.options().to_dict(),
                 "extras": self.opt_page.extras()}
         if self.mode == "bulk":
@@ -496,6 +583,15 @@ class MainWindow(QMainWindow):
         self.dst_page.set_server(Server.from_dict(dst))
         self.src_page.user.setText(str(src.get("user", "")))
         self.dst_page.user.setText(str(dst.get("user", "")))
+        self.src_page.set_admin_settings(src)
+        self.dst_page.set_admin_settings(dst)
+        for key, edit in (("carddav", self.src_page.carddav), ("caldav", self.src_page.caldav),
+                          ("webdav", self.src_page.webdav)):
+            if src.get(key):
+                edit.setText(str(src[key]))
+        if isinstance(data.get("kinds"), list):
+            self._update_availability()
+            self.data_page.set_selected([str(k) for k in data["kinds"]])
         self.opt_page.set_options(Options.from_dict(data.get("options") or {}),
                                   data.get("extras") or {})
         accounts = [Account(str(a.get("user1", "")), "", str(a.get("user2", "")), "")
@@ -538,7 +634,11 @@ class MainWindow(QMainWindow):
                                     "A migration is running. Stop it and quit?") != QMessageBox.Yes:
                 event.ignore()
                 return
-            self.runner.stop()
+            if self.runner:
+                self.runner.stop()
+            if self.cloud_worker and hasattr(self.cloud_worker, "stop"):
+                self.cloud_worker.stop()
+                self.cloud_worker.wait(5000)
         self.settings.setValue("last_profile", json.dumps(self._profile()))
         super().closeEvent(event)
 
@@ -588,7 +688,7 @@ class MainWindow(QMainWindow):
     # ================================================================== runs
 
     def _busy(self) -> bool:
-        return bool(self.runner and self.runner.is_running())
+        return bool((self.runner and self.runner.is_running()) or self.cloud_worker)
 
     def _reset_checks(self) -> None:
         self.checks = {"source": None, "destination": None}
@@ -618,11 +718,45 @@ class MainWindow(QMainWindow):
         if problem:
             page.set_test_result(False, problem)
             return
-        src, dst, account = single_side(page.server(), page.user.text().strip(),
-                                        page.secret.text())
-        options = Options(just_login=True, verify_certs=self.opt_page.verify.isChecked())
+        user = page.user.text().strip()
+        secret = page.secret.text()
         page.set_testing(True)
         self.log_card.add(f"Testing {key} server connection…", "heading")
+        if page.uses_cloud_login():
+            cred = self.creds.get(side)
+            user = cred.email if page.auth_mode() == AUTH_SIGNIN else user
+            if not user:
+                page.set_testing(False)
+                page.set_test_result(False, "Enter the mailbox to test.")
+                return
+            kinds = self.data_page.selected()
+            target = self._side(side)
+
+            def api_done(desc, error):
+                if error is not None:
+                    page.set_testing(False)
+                    page.set_test_result(False, f"Access check failed: {error}")
+                    self.checks[key] = False
+                    self.log_card.add(f"{key.capitalize()} access check failed: {error}",
+                                      "error")
+                    return
+                self.log_card.add(f"{key.capitalize()} access OK: {desc}", "ok")
+                if "mail" not in kinds:
+                    page.set_testing(False)
+                    page.set_test_result(True, f"Connection successful — {desc}.")
+                    self.checks[key] = True
+                    return
+                self._run_single_side(side, user, self._token_provider(side, user))
+
+            from .cloud.services import check_access
+            BgTask(lambda: check_access(target, user, kinds), api_done, self)
+            return
+        self._run_single_side(side, user, secret)
+
+    def _run_single_side(self, side: int, user: str, secret) -> None:
+        page = self.src_page if side == 1 else self.dst_page
+        src, dst, account = single_side(page.server(), user, secret)
+        options = Options(just_login=True, verify_certs=self.opt_page.verify.isChecked())
         self._launch(f"test{side}", src, dst, [account], options)
 
     def _start_clicked(self) -> None:
@@ -648,14 +782,29 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, APP_NAME,
                                     (f"Mailbox {i}: " if len(accounts) > 1 else "") + str(exc))
                 return
-        if kind == "migrate" and not self._confirm_deletions(options):
+        kinds = self.data_page.selected()
+        mail = "mail" in kinds
+        if kind == "migrate" and mail and not self._confirm_deletions(options):
             return
         self._then_migrate = then_migrate
+        self._accounts_running = accounts
+        self._mail_summary = None
+        self._cloud_stats = []
+        self.last_results = []
         if kind == "test":
             options = Options(just_login=True, verify_certs=options.verify_certs)
             self.log_card.add("Checking both servers for "
                               f"{len(accounts)} mailbox{'es' if len(accounts) > 1 else ''}…",
                               "heading")
+            if not mail:
+                self.run_kind = "test"
+                self._finish_checks([], True)
+                return
+        elif kind == "sizes" and not mail:
+            QMessageBox.information(self, APP_NAME, "Estimate counts email. Use Simulate to "
+                                                    "see what would be copied for contacts, "
+                                                    "calendars and files.")
+            return
         elif kind == "sizes":
             options.just_sizes = True
             self.review_page.estimate_btn.setEnabled(False)
@@ -664,6 +813,11 @@ class MainWindow(QMainWindow):
         else:
             options.dry_run = kind == "dry"
             self._show_run_page(kind, accounts)
+            if not mail:
+                self.run_kind = kind
+                if not self._start_cloud_phase(kind):
+                    self._finalize_run(kind, False)
+                return
         self._launch(kind, src, dst, accounts, options)
 
     def _confirm_deletions(self, options: Options) -> bool:
@@ -681,7 +835,9 @@ class MainWindow(QMainWindow):
 
     def _show_run_page(self, kind: str, accounts: list[Account]) -> None:
         self.on_run_page = True
-        self.run_page.reset(kind, accounts)
+        kinds = self.data_page.selected()
+        plans = self.shared_page.plans() if "shared" in kinds else []
+        self.run_page.reset(kind, accounts, kinds, plans)
         self.pages.setCurrentWidget(self.run_page)
         self.stepper.set_current(len(self.steps), len(self.steps) - 1)
         self.log_card.add("Simulation started (nothing will be changed)" if kind == "dry"
@@ -689,11 +845,14 @@ class MainWindow(QMainWindow):
         self._update_side_cards()
 
     def _stop(self) -> None:
-        if self.runner:
-            self.stop_btn.setEnabled(False)
-            self._then_migrate = False
-            self.run_page.status.setText("Stopping…")
+        self.stop_btn.setEnabled(False)
+        self._then_migrate = False
+        self.run_page.status.setText("Stopping…")
+        self._stopping = True
+        if self.runner and self.runner.is_running():
             self.runner.stop()
+        if self.cloud_worker:
+            self.cloud_worker.stop()
 
     # -- runner signals --
 
@@ -752,7 +911,8 @@ class MainWindow(QMainWindow):
 
     def _on_finished(self, results: list[AccountResult]) -> None:
         kind = self.run_kind
-        self.last_results = results
+        if kind in ("dry", "migrate"):
+            self.last_results = results
         ran = [r for r in results if r.exit_code is not None or r.error]
         ok = [r for r in ran if r.exit_code == 0 and not r.error]
         all_ok = bool(ran) and len(ok) == len(results)
@@ -768,22 +928,8 @@ class MainWindow(QMainWindow):
             self.checks[key] = all_ok
             self.log_card.add(msg, "ok" if all_ok else "error")
         elif kind == "test":
-            self.checks["source"] = self.checks["destination"] = all_ok
-            if not all_ok:
-                bad = [r for r in results if not (r.exit_code == 0 and not r.error)]
-                codes = {r.exit_code for r in bad}
-                if codes <= {162, 102}:
-                    self.checks["source"] = True
-                if codes <= {161, 101}:
-                    self.checks["destination"] = True
-                self.check_detail = (explain(bad[0]) if len(results) == 1 else
-                                     f"{len(bad)} of {len(results)} mailboxes failed. "
-                                     "See the Mailboxes step for details.")
-            else:
-                self.check_detail = ""
-            self.log_card.add("All connection checks passed" if all_ok else
-                              "Connection checks failed: " + self.check_detail,
-                              "ok" if all_ok else "error")
+            self._finish_checks(results, all_ok)
+            return
         elif kind == "sizes":
             self.review_page.estimate_btn.setEnabled(True)
             msgs = sum(r.progress.sizes[1].get("messages", 0) for r in ok if r.progress)
@@ -814,17 +960,79 @@ class MainWindow(QMainWindow):
         elif self.on_run_page:
             self._tips_from_checks()
 
+    def _finish_checks(self, results: list[AccountResult], mail_ok: bool) -> None:
+        """After the email logins (if any), check contacts/calendars/files access."""
+        self.checks["source"] = self.checks["destination"] = mail_ok
+        detail = ""
+        if not mail_ok:
+            bad = [r for r in results if not (r.exit_code == 0 and not r.error)]
+            codes = {r.exit_code for r in bad}
+            if codes <= {162, 102}:
+                self.checks["source"] = True
+            if codes <= {161, 101}:
+                self.checks["destination"] = True
+            detail = (explain(bad[0]) if len(results) == 1 else
+                      f"{len(bad)} of {len(results)} mailboxes failed. "
+                      "See the Mailboxes step for details.")
+        self.cloud_worker = True  # busy marker while API checks run
+
+        def api_done(problems):
+            self.cloud_worker = None
+            nonlocal detail
+            for n, account, message in problems:
+                self.checks["source" if n == 1 else "destination"] = False
+                who = account.user1 if n == 1 else account.user2
+                self.log_card.add(f"{'Source' if n == 1 else 'Destination'} {who}: {message}",
+                                  "error")
+                detail = detail or f"{who}: {message}"
+            ok = self.checks["source"] and self.checks["destination"]
+            self.check_detail = "" if ok else detail
+            self.log_card.add("All connection checks passed" if ok else
+                              "Connection checks failed: " + self.check_detail,
+                              "ok" if ok else "error")
+            self._update_footer()
+            if not self.on_run_page and self.steps[self.step] == "review":
+                self._tips_from_checks()
+
+        self._api_checks(self._accounts_running, api_done)
+        self._update_footer()
+
     def _finish_run(self, kind, results, ok, all_ok, stopped) -> None:
+        """Email finished: remember its numbers, then run the other data types."""
+        self._mail_summary = {
+            "copied": sum(r.progress.transferred or 0 for r in results if r.progress),
+            "skipped": sum(r.progress.skipped or 0 for r in results if r.progress),
+            "errors": sum(r.progress.errors or 0 for r in results if r.progress),
+            "bytes": [r.progress.bytes_text for r in results
+                      if r.progress and r.progress.bytes_text],
+            "ok": all_ok, "n_ok": len(ok), "n": len(results),
+            "title": explain(results[0]) if len(results) == 1 and not all_ok else "",
+        }
+        if not stopped and self._start_cloud_phase(kind):
+            return
+        self._finalize_run(kind, stopped)
+
+    def _finalize_run(self, kind: str, stopped: bool) -> None:
         rp = self.run_page
         rp.bar.setRange(0, 1000)
-        copied = sum(r.progress.transferred or 0 for r in results if r.progress)
-        skipped = sum(r.progress.skipped or 0 for r in results if r.progress)
-        errors = sum(r.progress.errors or 0 for r in results if r.progress)
+        mail = self._mail_summary or {"copied": 0, "skipped": 0, "errors": 0, "bytes": [],
+                                      "ok": True, "n_ok": 0, "n": 0, "title": ""}
+        cloud = getattr(self, "_cloud_stats", [])
+        stopped = stopped or getattr(self, "_stopping", False)
+        self._stopping = False
+        copied = mail["copied"] + sum(c.created + c.updated for c in cloud)
+        skipped = mail["skipped"] + sum(c.skipped for c in cloud)
+        errors = mail["errors"] + sum(c.failed for c in cloud)
+        cloud_bytes = sum(c.bytes for c in cloud)
         rp.t_copied.set(f"{copied:,}")
         rp.t_skipped.set(f"{skipped:,}")
         rp.t_errors.set(f"{errors:,}")
-        sizes = [r.progress.bytes_text for r in results if r.progress and r.progress.bytes_text]
-        rp.t_bytes.set(sizes[0] if len(sizes) == 1 else (f"{len(sizes)} runs" if sizes else "—"))
+        parts = list(mail["bytes"][:1]) if len(mail["bytes"]) == 1 else \
+            ([f"{len(mail['bytes'])} mail runs"] if mail["bytes"] else [])
+        if cloud_bytes:
+            parts.append(human_bytes(cloud_bytes) + (" files" if parts else ""))
+        rp.t_bytes.set(" + ".join(parts) if parts else "—")
+        all_ok = mail["ok"] and not any(c.failed for c in cloud)
         if stopped:
             title, color = "Stopped. Run it again any time to continue.", t.AMBER
         elif all_ok:
@@ -833,37 +1041,47 @@ class MainWindow(QMainWindow):
             title = ("Simulation finished — nothing was changed." if kind == "dry" else
                      "Migration finished successfully.")
             color = t.GREEN
-        elif len(results) == 1:
-            title, color = explain(results[0]), t.RED
+        elif mail["title"]:
+            title, color = mail["title"], t.RED
+        elif not mail["ok"]:
+            title, color = (f"{mail['n_ok']} of {mail['n']} mailboxes finished without "
+                            "email errors. See the table below."), t.AMBER
         else:
-            title, color = (f"{len(ok)} of {len(results)} mailboxes finished without "
-                            "errors."), t.AMBER
+            title, color = "Finished with some errors — see the table and the log.", t.AMBER
         rp.status.setText(title)
         rp.status.setStyleSheet(f"color: {color};")
-        detail = (f"{copied:,} messages {'would be copied' if kind == 'dry' else 'copied'}, "
-                  f"{skipped:,} already on the destination.")
-        rp.detail.setText(detail)
+        rp.header.title.setText("Stopped" if stopped else
+                                ("Simulation complete" if kind == "dry" else "Migration complete"))
+        rp.header.badge.set_icon("check" if all_ok and not stopped else "alert",
+                                 t.GREEN_DARK if all_ok and not stopped else t.AMBER)
+        verb = "would be copied" if kind == "dry" else "copied"
+        rp.detail.setText(f"{copied:,} items {verb}, {skipped:,} already at the destination"
+                          + (f", {errors:,} errors." if errors else "."))
         self.log_card.add(title, "ok" if all_ok else "error")
         if all_ok and kind == "migrate":
             self.checks["source"] = self.checks["destination"] = True
-        self._record_history(kind, results, all_ok, title, copied)
+        self._record_history(kind, self.last_results, all_ok, title, copied)
         self._notify(title)
+        self._update_footer()
+        self._tips_from_checks()
 
         if kind == "dry" and all_ok and getattr(self, "_then_migrate", False):
             self._then_migrate = False
             answer = QMessageBox.question(
                 self, APP_NAME,
-                f"Simulation finished: {copied:,} messages would be copied and {skipped:,} "
-                "are already on the destination.\n\nStart the real migration now?")
+                f"Simulation finished: {copied:,} items would be copied and {skipped:,} "
+                "are already at the destination.\n\nStart the real migration now?")
             if answer == QMessageBox.Yes:
                 QTimer.singleShot(0, lambda: self._start_run("migrate"))
 
     def _record_history(self, kind, results, all_ok, title, copied) -> None:
         s, d = self.src_page.server(), self.dst_page.server()
         accounts = self._accounts_running
+        kinds = ", ".join(KIND_NAMES[k] for k in self.data_page.selected())
         self.store.add_history({
             "mode_label": ("Simulation" if kind == "dry" else "Migration") +
-                          (f" · {len(accounts)} mailboxes" if len(accounts) > 1 else ""),
+                          (f" · {len(accounts)} mailboxes" if len(accounts) > 1 else "") +
+                          (f" · {kinds}" if kinds else ""),
             "from": f"{accounts[0].user1 if len(accounts) == 1 else ''} "
                     f"@ {s.host or PROVIDERS[s.provider].host}".strip(),
             "to": f"{accounts[0].user2 if len(accounts) == 1 else ''} "
@@ -893,17 +1111,44 @@ class MainWindow(QMainWindow):
                   "Migrate one mailbox from a source server to a destination server.",
                   "hint", True)])
 
-        def server_lines(page: ServerPage) -> list:
+        def server_lines(page: ServerPage, n: int) -> list:
             s = page.server()
             rows = [("Provider", PROVIDERS[s.provider].name)]
-            if not bulk:
-                rows.append(("Username", page.user.text().strip()))
-            rows.append(("Authentication", "OAuth2 access token" if s.auth == "oauth2"
-                         else "Password"))
-            return [label(page.endpoint_text(), "sub"), kv(rows)]
+            cred = self.creds.get(n)
+            mode = page.auth_mode()
+            cloud = page.platform() != "imap"
+            if cloud and mode == AUTH_SIGNIN:
+                rows.append(("Account", cred.email if cred else "not signed in"))
+                rows.append(("Authentication", "Signed in with "
+                             + ("Google" if page.platform() == "google" else "Microsoft")))
+            elif cloud and mode == AUTH_ADMIN:
+                if not bulk:
+                    rows.append(("Mailbox", page.user.text().strip()))
+                rows.append(("Authentication", "Organization admin access"))
+            else:
+                if not bulk:
+                    rows.append(("Username", page.user.text().strip()))
+                rows.append(("Authentication", "OAuth2 access token" if s.auth == "oauth2"
+                             else "Password"))
+                for key, name in (("carddav", "Contacts"), ("caldav", "Calendars"),
+                                  ("webdav", "Files")):
+                    url = page.dav().get(key)
+                    if url:
+                        rows.append((name, url))
+            return [label(page.endpoint_text() if not cloud else
+                          PROVIDERS[s.provider].name, "sub"), kv(rows)]
 
-        rp.src_sec.set_lines(server_lines(self.src_page))
-        rp.dst_sec.set_lines(server_lines(self.dst_page))
+        rp.src_sec.set_lines(server_lines(self.src_page, 1))
+        rp.dst_sec.set_lines(server_lines(self.dst_page, 2))
+        kinds = self.data_page.selected()
+        rp.data_sec.set_lines([label(", ".join(KIND_NAMES[k] for k in kinds) or "Nothing",
+                                     "sub")])
+        if "shared" in kinds:
+            plans = self.shared_page.plans()
+            rp.data_sec.content.addWidget(label(
+                f"{len(plans)} shared drive{'s' if len(plans) != 1 else ''}: " +
+                ", ".join(p.source.name for p in plans[:5]) +
+                ("…" if len(plans) > 5 else ""), "muted", True))
         rp.mbx_sec.setVisible(bulk)
         if bulk:
             accounts = self.mbx_page.table.accounts()
@@ -912,8 +1157,9 @@ class MainWindow(QMainWindow):
                 shown.append(f"…and {len(accounts) - 4} more")
             rp.mbx_sec.set_lines([label(f"{len(accounts)} mailboxes", "sub")] +
                                  [label(x, "muted") for x in shown])
-        rp.opt_sec.set_lines([checked_line(x, x.startswith("⚠"))
-                              for x in self.opt_page.summary()])
+        lines = (self.opt_page.summary() if "mail" in kinds else []) + \
+            self.opt_page.cloud_summary(kinds, self.dst_page.platform())
+        rp.opt_sec.set_lines([checked_line(x, x.startswith("⚠")) for x in lines])
 
     # ================================================================== csv
 
@@ -1003,6 +1249,22 @@ def self_test() -> int:
     proc = subprocess.run(engine + ["--version"], capture_output=True, text=True,
                           timeout=300)
     print("imapsync version:", proc.stdout.strip() or proc.stderr.strip())
+    # The contacts / calendars / files engine and its dependencies must load too.
+    try:
+        import importlib
+        from zoneinfo import ZoneInfo
+
+        for module in ("cryptography.hazmat.primitives.asymmetric.rsa", "icalendar",
+                       "mailmigrator.cloud.services"):
+            importlib.import_module(module)
+        from .cloud.recurrence import rrule_to_graph
+        ZoneInfo("America/New_York")
+        rrule_to_graph("RRULE:FREQ=WEEKLY;BYDAY=MO", __import__("datetime").date(2025, 1, 6),
+                       "UTC")
+        print("cloud engine: OK")
+    except Exception as exc:  # reported as a build failure
+        print("cloud engine: FAILED", exc)
+        return 1
     return proc.returncode
 
 

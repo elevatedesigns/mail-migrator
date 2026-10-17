@@ -116,4 +116,7 @@ four (Windows, macOS arm64 and x64, Linux) on every push.
 | `mailmigrator/pages.py` | The wizard steps and the progress screen. |
 | `mailmigrator/sections.py` | Presets, history, logs, settings and help screens. |
 | `mailmigrator/app.py` | The main window: sidebar, wizard flow, runs. |
-| `tests/` | `pytest` unit tests. |
+| `mailmigrator/cloudui.py` | Sign-in, admin connections and the background worker for non-email data. |
+| `mailmigrator/keepawake.py` | Prevents App Nap / sleep while a migration runs. |
+| `mailmigrator/cloud/` | Contacts, calendars, files and shared drives: Google APIs, Microsoft Graph, CardDAV/CalDAV/WebDAV, sign-in, and the migrators. No Qt; unit tested. |
+| `tests/` | `pytest` tests, including simulated Google/Graph APIs (`fakes.py`) and live local CardDAV/CalDAV/WebDAV servers. |

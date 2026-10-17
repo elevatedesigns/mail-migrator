@@ -8,10 +8,14 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
-from .engine import Account, Command, CommandError, Options, Server, build_command
+import threading
+
+from .engine import (Account, Command, CommandError, Options, Server, build_command,
+                     refresh_token_file)
 from .progress import Progress, ProgressParser
 
 CREATE_NO_WINDOW = 0x08000000
+REFRESH_MINUTES = 30
 
 
 @dataclass
@@ -46,6 +50,10 @@ class MigrationRunner(QObject):
         self._kill_timer = QTimer(self)
         self._kill_timer.setSingleShot(True)
         self._kill_timer.timeout.connect(self._force_kill)
+        # Google and Microsoft tokens last about an hour; keep imapsync's fresh.
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(REFRESH_MINUTES * 60 * 1000)
+        self._refresh_timer.timeout.connect(self._refresh_tokens)
 
     # -- public -----------------------------------------------------------
 
@@ -107,6 +115,8 @@ class MigrationRunner(QObject):
         proc.errorOccurred.connect(self._error)
         self._proc = proc
         self.account_started.emit(self._current, self._command.display())
+        if self._command.refreshers:
+            self._refresh_timer.start()
         proc.start(self._command.args[0], self._command.args[1:])
         proc.closeWriteChannel()  # never wait on a terminal prompt
 
@@ -133,6 +143,7 @@ class MigrationRunner(QObject):
         if self._proc is None:
             return
         self._kill_timer.stop()
+        self._refresh_timer.stop()
         if self._buffer:
             self._handle_line(self._buffer)
             self._buffer = ""
@@ -153,6 +164,17 @@ class MigrationRunner(QObject):
             result.exit_code = code
         self.account_finished.emit(self._current, result)
         QTimer.singleShot(0, self._next)
+
+    def _refresh_tokens(self) -> None:
+        refreshers = list(self._command.refreshers) if self._command else []
+
+        def work():
+            for path, provider in refreshers:
+                try:
+                    refresh_token_file(path, provider)
+                except Exception as exc:  # reported, the old token may still work
+                    self.line.emit(f"Warning: could not refresh the sign-in token: {exc}")
+        threading.Thread(target=work, daemon=True).start()
 
     def _force_kill(self) -> None:
         if self._proc is not None:

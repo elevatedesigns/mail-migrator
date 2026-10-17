@@ -21,12 +21,13 @@ _LIST = [
     Provider("custom", "Other / custom server",
              hint="Enter the IMAP server address given by your mail host."),
     Provider("gmail", "Gmail / Google Workspace", host="imap.gmail.com", flag="gmail",
-             hint="Turn on IMAP in Gmail settings and use an App Password "
-                  "(Google Account > Security > App passwords), or an OAuth2 access token."),
+             hint="Sign in with Google to move mail, contacts, calendars and Drive. "
+                  "IT admins can migrate the whole organization with a service account."),
     Provider("office365", "Microsoft 365 / Outlook.com", host="outlook.office365.com",
              flag="office",
-             hint="Microsoft no longer accepts plain passwords for IMAP. "
-                  "Choose 'OAuth2 access token' and paste a token for the mailbox."),
+             hint="Sign in with Microsoft to move mail, contacts, calendars and OneDrive "
+                  "(Microsoft no longer accepts passwords for IMAP). IT admins can migrate "
+                  "the whole organization with an app registration."),
     Provider("exchange", "Microsoft Exchange (on-premises)", flag="exchange",
              hint="Enter your Exchange server address. IMAP must be enabled on the server."),
     Provider("icloud", "iCloud Mail", host="imap.mail.me.com",

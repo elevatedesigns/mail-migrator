@@ -18,6 +18,10 @@ from .store import Store
 from .widgets import IconBadge, PageHeader, button, card, label
 
 
+SETUP_GUIDE_URL = ("https://github.com/elevatedesigns/mail-migrator/blob/main/docs/"
+                   "google-microsoft-setup.md")
+
+
 def _when(iso: str) -> str:
     try:
         return datetime.fromisoformat(iso).strftime("%b %d, %Y  %H:%M")
@@ -225,6 +229,7 @@ class LogsSection(Section):
 
 class SettingsSection(Section):
     engine_changed = Signal(str)
+    apps_changed = Signal(dict)
 
     def __init__(self, store: Store) -> None:
         super().__init__("settings", "Settings", "Where Mail Migrator keeps its files, and "
@@ -246,6 +251,50 @@ class SettingsSection(Section):
         l.addLayout(row)
         l.addWidget(label("Only change this to use a different imapsync build.", "hint"))
         self.body.addWidget(f)
+
+        fa, la = card("inner")
+        la.addWidget(label("Google & Microsoft apps", "h3"))
+        from .cloud.config import builtin_ids_present
+        self.apps_note = label(
+            ("This build includes Mail Migrator's own Google and Microsoft app registrations. "
+             "Fill these in only to use your organization's own instead."
+             if builtin_ids_present() else
+             "This build has no built-in app registrations. To sign in with Google or "
+             "Microsoft, enter your organization's app IDs (see the setup guide)."),
+            "muted", True)
+        la.addWidget(self.apps_note)
+        from PySide6.QtWidgets import QGridLayout
+        g = QGridLayout()
+        g.setHorizontalSpacing(14)
+        g.setVerticalSpacing(8)
+        self.app_fields = {}
+        for row, (key, text, secret, placeholder) in enumerate((
+                ("google_client_id", "Google client ID", False,
+                 "1234567890-abc.apps.googleusercontent.com"),
+                ("google_client_secret", "Google client secret", True, "GOCSPX-…"),
+                ("microsoft_client_id", "Microsoft application ID", False,
+                 "00000000-0000-0000-0000-000000000000"),
+                ("microsoft_tenant", "Microsoft tenant", False,
+                 "common (any account) or your tenant ID / domain"))):
+            edit = QLineEdit()
+            edit.setPlaceholderText(placeholder)
+            if secret:
+                edit.setEchoMode(QLineEdit.Password)
+            self.app_fields[key] = edit
+            g.addWidget(label(text), row, 0)
+            g.addWidget(edit, row, 1)
+        g.setColumnStretch(1, 1)
+        la.addLayout(g)
+        ra = QHBoxLayout()
+        save_apps = button("Save app settings", "save", obj="small")
+        save_apps.clicked.connect(lambda: self.apps_changed.emit(self.app_values()))
+        guide = button("Setup guide", "external", obj="small")
+        guide.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(SETUP_GUIDE_URL)))
+        ra.addWidget(save_apps)
+        ra.addWidget(guide)
+        ra.addStretch(1)
+        la.addLayout(ra)
+        self.body.addWidget(fa)
 
         f2, l2 = card("inner")
         l2.addWidget(label("Data folder", "h3"))
@@ -272,12 +321,22 @@ class SettingsSection(Section):
         self.engine_path.editingFinished.connect(
             lambda: self.engine_changed.emit(self.engine_path.text().strip()))
 
+    def app_values(self) -> dict:
+        return {k: e.text().strip() for k, e in self.app_fields.items()}
+
+    def set_app_values(self, values: dict) -> None:
+        for k, e in self.app_fields.items():
+            e.setText(values.get(k, "") or "")
+
     def set_engine(self, path_text: str, status: str) -> None:
         self.engine_label.setText(f"{status}\n{path_text}")
 
 
 class HelpSection(Section):
     LINKS = [
+        ("shield", "Google Workspace & Microsoft 365 setup",
+         "Register the sign-in apps, and set up admin access for whole-organization moves.",
+         SETUP_GUIDE_URL),
         ("mail", "Gmail & Google Workspace",
          "Turn on IMAP, then create an App Password (needs 2-Step Verification).",
          "https://support.google.com/accounts/answer/185833"),

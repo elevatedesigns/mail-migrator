@@ -179,3 +179,20 @@ def test_single_side():
     cmd = build_command(ENGINE, src, dst, acc, Options(just_login=True))
     assert cmd.env == {"IMAPSYNC_PASSWORD1": "p", "IMAPSYNC_PASSWORD2": "p"}
     assert cmd.args.count("imap.example.com") == 2
+
+
+def test_signin_token_file_and_refresh(tmp_path):
+    from mailmigrator.engine import AUTH_ADMIN, AUTH_SIGNIN, refresh_token_file
+    tokens = iter(["tok-1", "tok-2"])
+    provider = lambda: next(tokens)  # noqa: E731
+    src = Server(provider="gmail", auth=AUTH_SIGNIN)
+    dst = Server(provider="office365", auth=AUTH_ADMIN)
+    acct = Account("me@gmail.com", provider, "me@contoso.com", lambda: "app-token")
+    cmd = build_command(ENGINE, src, dst, acct, Options(), tmpdir=str(tmp_path))
+    p1 = cmd.args[cmd.args.index("--oauthaccesstoken1") + 1]
+    assert open(p1).read().strip() == "tok-1" and "tok-1" not in " ".join(cmd.args)
+    assert not cmd.env and len(cmd.refreshers) == 2
+    refresh_token_file(*cmd.refreshers[0])
+    assert open(p1).read().strip() == "tok-2"
+    with pytest.raises(CommandError, match="sign in first"):
+        preflight(src, dst, Account("a", "", "b", lambda: "x"), Options())

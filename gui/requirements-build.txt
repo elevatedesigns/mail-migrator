@@ -1,3 +1,7 @@
 -r requirements.txt
 pyinstaller>=6.10
 pytest>=8
+responses>=0.25
+radicale>=3.2
+wsgidav>=4.3
+cheroot>=10

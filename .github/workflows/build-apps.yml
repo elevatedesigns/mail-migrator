@@ -80,6 +80,11 @@ jobs:
 
       - name: Build standalone imapsync, app, and package
         working-directory: gui
+        env:
+          # Optional: the built-in Google / Microsoft app registrations.
+          MM_GOOGLE_CLIENT_ID: ${{ secrets.MM_GOOGLE_CLIENT_ID }}
+          MM_GOOGLE_CLIENT_SECRET: ${{ secrets.MM_GOOGLE_CLIENT_SECRET }}
+          MM_MICROSOFT_CLIENT_ID: ${{ secrets.MM_MICROSOFT_CLIENT_ID }}
         run: python build.py all
 
       - name: Self-test the packaged app

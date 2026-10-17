@@ -1,10 +1,14 @@
 # Mail Migrator
 
-**Move email from one mail server to another, with a friendly desktop app for
-Windows, macOS and Linux.**
+**Move email, contacts, calendars and files between Google Workspace,
+Microsoft 365 and any other mail provider, with a desktop app for Windows,
+macOS and Linux.**
 
-Mail Migrator copies every folder and message from one IMAP account to another,
-whether you're moving one mailbox or hundreds. It's a graphical front end for
+Mail Migrator copies every folder and message from one account to another,
+whether you're moving one mailbox or hundreds. With Google Workspace and
+Microsoft 365 it also moves **contacts, calendars, Drive/OneDrive files,
+sharing and shared drives**, signing in with Google or Microsoft, or with
+admin access to move a whole organization without anyone's password. It's a graphical front end for
 [imapsync](https://imapsync.lamiral.info/), the long-trusted migration engine
 by Gilles Lamiral, and it bundles imapsync, so there's nothing else to install.
 
@@ -22,19 +26,34 @@ Get the latest version from the
 | **macOS** Intel | `MailMigrator-*-macos-x64.dmg` | Same as above. |
 | **Linux** x64 (Ubuntu 22.04+, Debian 12+, Fedora 36+) | `MailMigrator-*-linux-x64.tar.gz` | Extract, then run `MailMigrator/Mail Migrator`. |
 
+## What it can move
+
+| From → To | Email | Contacts | Calendars | Files & sharing | Shared drives |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| Google Workspace → Microsoft 365 | ✓ | ✓ | ✓ | ✓ | ✓ (admin) |
+| Microsoft 365 → Google Workspace | ✓ | ✓ | ✓ | ✓ | ✓ (admin) |
+| Google → Google, Microsoft → Microsoft | ✓ | ✓ | ✓ | ✓ | ✓ (admin) |
+| iCloud, Fastmail, Zoho, Nextcloud, … → Google or Microsoft | ✓ | ✓ CardDAV | ✓ CalDAV | ✓ WebDAV | — |
+| Any IMAP server → any IMAP server | ✓ | — | — | — | — |
+
+Copied meetings never send invitations, and copied sharing never sends
+notification emails. Setting up the Google and Microsoft side is described in
+the [setup guide](docs/google-microsoft-setup.md).
+
 ## How it works
 
 A short wizard takes you from start to finish:
 
 1. **Migration type:** one mailbox, or many mailboxes in bulk (type them in
    or import a CSV file).
-2. **Source:** the server your mail is on now. Pick a provider (Gmail,
-   Microsoft 365, iCloud, Yahoo, Zoho, Fastmail, GoDaddy, …) or enter any IMAP
-   server, then click **Test Connection**.
-3. **Destination:** where the mail should go.
-4. **Options:** match standard folders (Sent, Drafts, Trash, Junk), pick a
-   date range, skip very large messages, and more.
-5. **Review & Start:** see everything at a glance, **Estimate** the number of
+2. **Source:** where your data is now. For Google Workspace or Microsoft 365,
+   click **Sign in** (or connect with admin access). For other providers enter
+   the IMAP server, plus optional contacts/calendar/file addresses.
+3. **Destination:** where it should go.
+4. **What to migrate:** email, contacts, calendars, files, shared drives.
+5. **Options:** folder matching, date ranges, size limits, converting
+   documents, copying sharing, and mapping old addresses to new ones.
+6. **Review & Start:** see everything at a glance, **Estimate** the number of
    messages and the size, **Simulate** first, then **Start Migration**.
 
 | Connect a server | Choose options |

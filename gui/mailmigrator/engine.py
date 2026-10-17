@@ -19,7 +19,10 @@ SECURITY_STARTTLS = "starttls"  # Plain connection upgraded with STARTTLS (usual
 SECURITY_NONE = "none"        # No encryption at all
 
 AUTH_PASSWORD = "password"
-AUTH_OAUTH2 = "oauth2"
+AUTH_OAUTH2 = "oauth2"        # an access token pasted by the user
+AUTH_SIGNIN = "signin"        # "Sign in with Google/Microsoft" in the browser
+AUTH_ADMIN = "admin"          # organization-wide admin access
+TOKEN_AUTHS = (AUTH_OAUTH2, AUTH_SIGNIN, AUTH_ADMIN)
 
 EXIT_MESSAGES = {
     0: "Success",
@@ -86,7 +89,11 @@ class Server:
 
 @dataclass
 class Account:
-    """A mailbox pair. ``secret`` is a password, or an OAuth2 access token."""
+    """A mailbox pair.
+
+    ``secret`` is a password, a pasted OAuth2 access token, or for signed-in and
+    admin accounts a callable returning a fresh access token.
+    """
 
     user1: str = ""
     secret1: str = ""
@@ -150,6 +157,8 @@ class Command:
     env: dict[str, str]
     # Files holding OAuth2 tokens; the caller deletes them when the run ends.
     temp_files: list[str] = field(default_factory=list)
+    # (token file, token provider): rewrite the file periodically during long runs.
+    refreshers: list = field(default_factory=list)
 
     def display(self) -> str:
         """Shell-like rendering safe to show or copy (no secrets inside)."""
@@ -195,7 +204,10 @@ def validate(src: Server, dst: Server, account: Account) -> None:
             raise CommandError(f"{label} server address is empty.")
         if not user.strip():
             raise CommandError(f"{label} username is empty.")
-        if not secret:
+        if server.auth in (AUTH_SIGNIN, AUTH_ADMIN):
+            if not callable(secret):
+                raise CommandError(f"{label}: sign in first.")
+        elif not secret:
             what = "access token" if server.auth == AUTH_OAUTH2 else "password"
             raise CommandError(f"{label} {what} is empty for {user}.")
         if not 0 <= server.port <= 65535:
@@ -251,6 +263,7 @@ def build_command(engine: list[str], src: Server, dst: Server, account: Account,
     args = list(engine)
     env: dict[str, str] = {}
     temp_files: list[str] = []
+    refreshers: list = []
 
     for n, server, user, secret in ((1, src, account.user1, account.secret1),
                                     (2, dst, account.user2, account.secret2)):
@@ -258,10 +271,14 @@ def build_command(engine: list[str], src: Server, dst: Server, account: Account,
         if options.verify_certs and (PROVIDERS.get(server.provider, PROVIDERS["custom"]).flag
                                      or server.security != SECURITY_NONE):
             args += [f"--sslargs{n}", "SSL_verify_mode=1"]
-        if server.auth == AUTH_OAUTH2:
+        if server.auth in TOKEN_AUTHS:
             # --oauthaccesstoken accepts a file name; keep the token off argv.
-            path = _write_secret_file(secret, tmpdir)
+            # imapsync re-reads the file at every login, so it can be refreshed.
+            token = secret() if callable(secret) else secret
+            path = _write_secret_file(token, tmpdir)
             temp_files.append(path)
+            if callable(secret):
+                refreshers.append((path, secret))
             args += [f"--oauthaccesstoken{n}", path]
         else:
             env[f"IMAPSYNC_PASSWORD{n}"] = secret
@@ -303,7 +320,19 @@ def build_command(engine: list[str], src: Server, dst: Server, account: Account,
 
     args += parse_extra_args(options.extra_args)
 
-    return Command(args=args, env=env, temp_files=temp_files)
+    return Command(args=args, env=env, temp_files=temp_files, refreshers=refreshers)
+
+
+def refresh_token_file(path: str, provider) -> None:
+    """Replace a token file atomically with a fresh token."""
+    token = provider()
+    tmp = path + ".new"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, token.strip().encode("utf-8") + b"\n")
+    finally:
+        os.close(fd)
+    os.replace(tmp, path)
 
 
 def _write_secret_file(secret: str, tmpdir: str | None) -> str:

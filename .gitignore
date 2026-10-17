@@ -26,3 +26,6 @@ local/
 # credentials; they are not republished here. Get them from upstream imapsync.
 oauth2/
 X/oauth2_example.html
+
+# Built-in Google/Microsoft app IDs, generated at build time from CI secrets
+gui/mailmigrator/cloud/_build_ids.py

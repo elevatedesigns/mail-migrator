@@ -37,6 +37,9 @@ APP_NAME = "Mail Migrator"
 STEP_LABELS = {"type": "Migration Type", "source": "Source", "destination": "Destination",
                "data": "What to Migrate", "mailboxes": "Mailboxes", "shared": "Shared Drives",
                "options": "Options", "review": "Review & Start"}
+MIN_WIDTH, MIN_HEIGHT = 860, 600
+COMPACT_SIDEBAR_BELOW = 1180   # window width
+CONTENT_MAX_WIDTH = 1760
 KIND_NAMES = {"mail": "Email", "contacts": "Contacts", "calendars": "Calendars",
               "files": "Files", "shared": "Shared drives"}
 KEY_LINES = ("success login", "failure", "Err ", "Error", "Exiting with return value")
@@ -94,6 +97,18 @@ class CurrentPageStack(QStackedWidget):
     def minimumSizeHint(self):  # noqa: N802
         w = self.currentWidget()
         return w.minimumSizeHint() if w else super().minimumSizeHint()
+
+    # Wrapped text makes a page taller when it is narrower; pass that on to the
+    # scroll area so narrow windows scroll instead of squeezing controls.
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        w = self.currentWidget()
+        return bool(w and w.hasHeightForWidth())
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        w = self.currentWidget()
+        if w and w.hasHeightForWidth():
+            return max(w.heightForWidth(width), w.minimumSizeHint().height())
+        return super().heightForWidth(width)
 
 
 class MainWindow(QMainWindow, CloudMixin):
@@ -158,15 +173,19 @@ class MainWindow(QMainWindow, CloudMixin):
         self.settings_page.apps_changed.connect(self._apps_changed)
         self.settings_page.set_app_values(self._app_overrides())
 
+        # Fit the screen we open on; small laptop screens included.
         screen = QApplication.primaryScreen().availableGeometry()
-        self.resize(min(1480, screen.width() - 40), min(980, screen.height() - 40))
-        self.setMinimumSize(1180, 760)
+        self.setMinimumSize(MIN_WIDTH, MIN_HEIGHT)
+        self.resize(max(MIN_WIDTH, min(1480, int(screen.width() * 0.92))),
+                    max(MIN_HEIGHT, min(980, int(screen.height() * 0.92))))
 
     def _build_sidebar(self) -> QWidget:
         side = QWidget()
         side.setObjectName("sidebar")
         side.setFixedWidth(270)
+        self.sidebar = side
         v = QVBoxLayout(side)
+        self.sidebar_layout = v
         v.setContentsMargins(16, 26, 16, 22)
         v.setSpacing(6)
         brand = QHBoxLayout()
@@ -175,8 +194,9 @@ class MainWindow(QMainWindow, CloudMixin):
         brand.addWidget(IconBadge("mail", t.ACCENT, 56))
         col = QVBoxLayout()
         col.setSpacing(0)
-        col.addWidget(label(APP_NAME, "appName"))
-        col.addWidget(label(f"v{__version__}", "appVersion"))
+        self.brand_labels = [label(APP_NAME, "appName"), label(f"v{__version__}", "appVersion")]
+        for lb in self.brand_labels:
+            col.addWidget(lb)
         brand.addLayout(col, 1)
         v.addLayout(brand)
         v.addSpacing(30)
@@ -195,6 +215,8 @@ class MainWindow(QMainWindow, CloudMixin):
 
     def _nav_button(self, icon_name: str, text: str, index: int) -> QPushButton:
         b = QPushButton("  " + text)
+        b.setProperty("full_text", "  " + text)
+        b.setToolTip(text.replace("&&", "&"))
         b.setObjectName("nav")
         b.setCheckable(True)
         b.setIcon(t.icon(icon_name, t.MUTED, 22))
@@ -205,7 +227,9 @@ class MainWindow(QMainWindow, CloudMixin):
 
     def _build_wizard(self) -> QWidget:
         w = QWidget()
+        w.setMaximumWidth(CONTENT_MAX_WIDTH)
         v = QVBoxLayout(w)
+        self.wizard_layout = v
         v.setContentsMargins(30, 18, 30, 22)
         v.setSpacing(14)
         self.stepper = Stepper()
@@ -248,16 +272,26 @@ class MainWindow(QMainWindow, CloudMixin):
         right.addWidget(self.tips_card)
         right.addWidget(self.log_card, 1)
         right_w = QWidget()
-        self.right_column = right_w
         right_w.setLayout(right)
-        right_w.setFixedWidth(450)
         right.setContentsMargins(0, 0, 0, 0)
-        content.addWidget(right_w)
+        self.log_card.setMinimumHeight(240)
+        # The right column scrolls on short windows rather than squeezing its cards.
+        right_scroll = QScrollArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        right_scroll.setWidget(right_w)
+        right_scroll.setFixedWidth(450)
+        self.right_column = right_scroll
+        content.addWidget(right_scroll)
         v.addLayout(content, 1)
 
         footer = QHBoxLayout()
         footer.setSpacing(12)
         self.back_btn = button("Back", "arrow-left", "ghost")
+        self.log_btn = button("Log", "file", "ghost")
+        self.log_btn.setCheckable(True)
+        self.log_btn.setToolTip("Show the migration log and tips")
+        self.log_btn.toggled.connect(lambda _on: self._apply_responsive())
         self.cancel_btn = button("Cancel", obj="ghost")
         self.save_btn = button("Save as Preset", "save", "ghost")
         self.sim_btn = button("Simulate", "play", "ghost")
@@ -268,6 +302,7 @@ class MainWindow(QMainWindow, CloudMixin):
         self.new_btn = button("New Migration", "plus", "primary", "#ffffff")
         footer.addWidget(self.back_btn)
         footer.addWidget(self.cancel_btn)
+        footer.addWidget(self.log_btn)
         footer.addStretch(1)
         for b in (self.save_btn, self.sim_btn, self.logs_btn, self.stop_btn, self.next_btn,
                   self.start_btn, self.new_btn):
@@ -302,7 +337,64 @@ class MainWindow(QMainWindow, CloudMixin):
                 edit.textChanged.connect(self._update_availability)
         self.review_page.estimate_requested.connect(lambda: self._start_run("sizes"))
         self.review_page.edit_requested.connect(self._edit)
-        return w
+        # Centre the wizard and stop it stretching across very wide screens.
+        outer = QWidget()
+        hl = QHBoxLayout(outer)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.addStretch(1)
+        hl.addWidget(w, 100)
+        hl.addStretch(1)
+        return outer
+
+    # ============================================================ layout
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._apply_responsive()
+
+    def _apply_responsive(self) -> None:
+        """Adapt the layout to the window size (laptops up to large monitors)."""
+        if not hasattr(self, "help"):   # still being built
+            return
+        width = self.width()
+        compact = width < COMPACT_SIDEBAR_BELOW
+        self.sidebar.setFixedWidth(84 if compact else 270)
+        self.sidebar_layout.setContentsMargins(12 if compact else 16, 26, 12 if compact else 16, 22)
+        for lb in self.brand_labels:
+            lb.setVisible(not compact)
+        for b in self.nav.buttons():
+            b.setText("" if compact else b.property("full_text"))
+        available = min(width - self.sidebar.width(), CONTENT_MAX_WIDTH)
+        narrow = available < 900
+        m = 16 if narrow else 30
+        self.wizard_layout.setContentsMargins(m, 12 if narrow else 18, m, 14 if narrow else 22)
+        for section in (self.presets, self.history, self.logs, self.settings_page, self.help):
+            section.set_compact(narrow)
+        # Secondary footer buttons become icon-only when space is tight.
+        self.save_btn.setText("" if narrow else "Save as Preset")
+        self.logs_btn.setText("" if narrow else "Open log folder")
+        self.save_btn.setToolTip("Save as Preset")
+        self.logs_btn.setToolTip("Open log folder")
+        if available >= 1250:
+            column = 450
+        elif available >= 1020:
+            column = 360
+        else:
+            column = 0          # no room: the Log button swaps it in instead
+        on_type_step = (not self.on_run_page and self.steps and
+                        self.steps[self.step] == "type")
+        self.log_btn.setVisible(column == 0 and not on_type_step)
+        if column:
+            self.right_column.setFixedWidth(column)
+            self.right_column.setVisible(not on_type_step)
+            self.page_scroll.setVisible(True)
+        else:
+            show_log = self.log_btn.isChecked() and not on_type_step
+            self.right_column.setMaximumWidth(16777215)
+            self.right_column.setMinimumWidth(0)
+            self.right_column.setVisible(show_log)
+            self.page_scroll.setVisible(not show_log)
+            self.log_btn.setText("Back to page" if show_log else "Log")
 
     # ============================================================ navigation
 
@@ -338,6 +430,10 @@ class MainWindow(QMainWindow, CloudMixin):
 
     def _go(self, index: int) -> None:
         self.on_run_page = False
+        if hasattr(self, "log_btn") and self.log_btn.isChecked():
+            self.log_btn.blockSignals(True)
+            self.log_btn.setChecked(False)   # a new step always shows the page
+            self.log_btn.blockSignals(False)
         self.step = max(0, min(index, len(self.steps) - 1))
         self.max_step = max(self.max_step, self.step)
         key = self.steps[self.step]
@@ -468,16 +564,16 @@ class MainWindow(QMainWindow, CloudMixin):
 
     def _update_side_cards(self) -> None:
         if self.on_run_page:
-            self.right_column.setVisible(True)
             page = self.run_page
             self.info_card.set("Running", page.info[0], page.info[1])
             self._tips_from_checks()
+            self._apply_responsive()
             return
         key = self.steps[self.step]
         page = self.page_for[key]
         n = len(self.steps)
         # The first step uses the full width, like the welcome screen in the design.
-        self.right_column.setVisible(key != "type")
+        self._apply_responsive()
         self.info_card.set(f"Step {self.step + 1} of {n}", page.info[0], page.info[1])
         if key == "review":
             self._tips_from_checks()

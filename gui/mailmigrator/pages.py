@@ -6,7 +6,7 @@ from datetime import date
 
 from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDateEdit,
+from PySide6.QtWidgets import (QAbstractItemView, QBoxLayout, QButtonGroup, QComboBox, QDateEdit,
                                QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLineEdit,
                                QProgressBar, QRadioButton, QSpinBox, QStyledItemDelegate,
                                QTableWidget, QTableWidgetItem, QToolButton, QVBoxLayout,
@@ -81,8 +81,9 @@ class TypePage(Page):
         il.addWidget(label("What type of migration do you want to perform?", "h2"))
         il.addWidget(label("Choose the option that best fits your needs. You can change "
                            "this later.", "sub", True))
-        row = QHBoxLayout()
+        row = QBoxLayout(QBoxLayout.LeftToRight)
         row.setSpacing(20)
+        self.choice_row = row
         self.single = ChoiceCard(
             "mail", t.ACCENT, "Single Mailbox Migration",
             "Migrate one mailbox from a source server to a destination server.",
@@ -118,6 +119,12 @@ class TypePage(Page):
         self.bulk.clicked.connect(lambda: self.set_mode("bulk"))
         self._mode = ""
         self.set_mode("single")
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        # Side by side when there's room, stacked on narrow windows.
+        self.choice_row.setDirection(QBoxLayout.LeftToRight if self.width() >= 820
+                                     else QBoxLayout.TopToBottom)
+        super().resizeEvent(event)
 
     def mode(self) -> str:
         return self._mode
@@ -805,13 +812,13 @@ class MailboxesPage(Page):
                          "login.", t.PURPLE)
         inner, il = card("inner")
         il.setContentsMargins(24, 22, 24, 22)
-        top = QHBoxLayout()
         col = QVBoxLayout()
         col.setSpacing(2)
         col.addWidget(label("Mailboxes", "h3"))
         self.count = label("", "muted")
         col.addWidget(self.count)
-        top.addLayout(col, 1)
+        il.addLayout(col)
+        top = QHBoxLayout()
         self.import_btn = button("Import CSV…", "upload", obj="small")
         self.export_btn = button("Export CSV…", "download", obj="small")
         self.template_btn = button("CSV template", "file", obj="small")
@@ -822,14 +829,17 @@ class MailboxesPage(Page):
                                       "Destination addresses use the address mapping in "
                                       "Options.")
         self.directory_btn.setVisible(False)
-        for b in (self.directory_btn, self.add_btn, self.remove_btn):
+        # Two short button rows fit narrow windows; one long row would not.
+        for b in (self.add_btn, self.remove_btn, self.directory_btn):
             top.addWidget(b)
+        top.addStretch(1)
         il.addLayout(top)
         tools = QHBoxLayout()
-        tools.addWidget(label("Double-click a cell to type, or import a CSV file.", "hint"), 1)
-        for b in (self.template_btn, self.import_btn, self.export_btn):
+        for b in (self.import_btn, self.export_btn, self.template_btn):
             tools.addWidget(b)
+        tools.addStretch(1)
         il.addLayout(tools)
+        il.addWidget(label("Double-click a cell to type, or import a CSV file.", "hint", True))
         self.table = AccountsTable()
         il.addWidget(self.table, 1)
         self.body.addWidget(inner, 1)

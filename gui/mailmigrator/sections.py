@@ -40,13 +40,35 @@ class Section(QWidget):
                  color: str = t.ACCENT) -> None:
         super().__init__()
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(32, 28, 32, 28)
+        outer.setContentsMargins(0, 0, 0, 0)
+        # Scroll instead of squeezing when the window is smaller than the content.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        holder = QWidget()
+        self.margins = QVBoxLayout(holder)
+        self.margins.setContentsMargins(32, 28, 32, 28)
         frame, lay = card()
+        frame.setMaximumWidth(1500)
         lay.setContentsMargins(30, 28, 30, 28)
         lay.setSpacing(20)
         lay.addWidget(PageHeader(icon_name, title, subtitle, color))
         self.body = lay
-        outer.addWidget(frame, 1)
+        self.frame = frame
+        # Centre the card, and stop it stretching across very wide screens.
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(frame, 100)
+        row.addStretch(1)
+        self.margins.addLayout(row, 1)
+        scroll.setWidget(holder)
+        outer.addWidget(scroll)
+
+    def set_compact(self, compact: bool) -> None:
+        m = 14 if compact else 32
+        self.margins.setContentsMargins(m, 18 if compact else 28, m, 18 if compact else 28)
+        p = 18 if compact else 30
+        self.body.setContentsMargins(p, 20 if compact else 28, p, 20 if compact else 28)
 
     def refresh(self) -> None:
         pass

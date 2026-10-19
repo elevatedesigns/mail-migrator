@@ -125,6 +125,7 @@ class Stepper(QWidget):
         self.current = 0
         self.done_upto = -1     # highest step index that is complete
         self.setMinimumHeight(92)
+        self.setMinimumWidth(260)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setMouseTracking(True)
 
@@ -140,7 +141,8 @@ class Stepper(QWidget):
 
     def _centers(self) -> list[QPointF]:
         n = max(1, len(self.steps))
-        margin = 70
+        # Room for half a label at each end, but never more than the widget allows.
+        margin = min(70, max(26, self.width() / (2 * n)))
         span = max(1, self.width() - 2 * margin)
         return [QPointF(margin + (span * i / (n - 1) if n > 1 else span / 2), 30)
                 for i in range(n)]
@@ -183,11 +185,21 @@ class Stepper(QWidget):
                 p.setPen(QColor("#ffffff"))
                 p.drawText(QRectF(c.x() - radius, c.y() - radius, 2 * radius, 2 * radius),
                            Qt.AlignCenter, str(i + 1))
-            font.setPixelSize(15)
+            # Labels shrink with the window; when there's no room, show only the
+            # current step's name.
+            gap = (centers[1].x() - centers[0].x()) if len(centers) > 1 else self.width()
+            width = min(180.0, gap - 8)
+            if width < 70 and not is_current:
+                continue
+            if width < 70:
+                width = min(200.0, self.width())
+            font.setPixelSize(15 if width >= 110 else 13)
             font.setBold(is_current)
             p.setFont(font)
             p.setPen(QColor(t.TEXT if is_current else t.MUTED))
-            p.drawText(QRectF(c.x() - 90, c.y() + radius + 10, 180, 24), Qt.AlignCenter, name)
+            text = p.fontMetrics().elidedText(name, Qt.ElideRight, int(width))
+            left = min(max(0.0, c.x() - width / 2), self.width() - width)
+            p.drawText(QRectF(left, c.y() + radius + 10, width, 24), Qt.AlignCenter, text)
 
 
 class ChoiceCard(QFrame):
